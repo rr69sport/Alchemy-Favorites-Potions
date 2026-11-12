@@ -1,57 +1,75 @@
 -- Motor del addon: carga, SavedVariables y lógica de favoritas.
 local AFP = AlchemyFavoritePotions
 
--- Iconos de prueba (paso 2); las filas reales usarán los iconos de los objetos
-local TEST_POTION_ICON = "EsoUI/Art/Crafting/alchemy_emptySlot_solvent.dds"
-local TEST_SOLVENT_ICON = "EsoUI/Art/Crafting/alchemy_emptySlot_solvent.dds"
-local TEST_REAGENT_ICON = "EsoUI/Art/Crafting/alchemy_emptySlot_reagent.dds"
+-- Inventarios donde el juego busca ingredientes para la mesa de alquimia
+local INVENTORY_TYPES = { INVENTORY_BACKPACK, INVENTORY_CRAFT_BAG, INVENTORY_BANK }
 
-local function CreateTestIngredient(nameKey, icon)
-    return { name = AFP.L(nameKey), icon = icon }
-end
-
---- Devuelve las filas que muestra la pestaña de favoritas.
--- PASO 2: datos de prueba. Más adelante se construirán desde AFP.sv.favorites.
-function AFP.GetFavoriteRows()
-    return {
-        {
-            name = string.format(AFP.L("TEST_POTION"), 1),
-            icon = TEST_POTION_ICON,
-            ingredients = {
-                CreateTestIngredient("TEST_SOLVENT", TEST_SOLVENT_ICON),
-                CreateTestIngredient("TEST_REAGENT", TEST_REAGENT_ICON),
-                CreateTestIngredient("TEST_REAGENT", TEST_REAGENT_ICON),
-            },
-        },
-        {
-            name = string.format(AFP.L("TEST_POTION"), 2),
-            icon = TEST_POTION_ICON,
-            ingredients = {
-                CreateTestIngredient("TEST_SOLVENT", TEST_SOLVENT_ICON),
-                CreateTestIngredient("TEST_REAGENT", TEST_REAGENT_ICON),
-                CreateTestIngredient("TEST_REAGENT", TEST_REAGENT_ICON),
-                CreateTestIngredient("TEST_REAGENT", TEST_REAGENT_ICON),
-            },
-        },
-        {
-            name = AFP.L("TEST_LONG_POTION"),
-            icon = TEST_POTION_ICON,
-            ingredients = {
-                CreateTestIngredient("TEST_LONG_INGREDIENT", TEST_SOLVENT_ICON),
-                CreateTestIngredient("TEST_LONG_INGREDIENT", TEST_REAGENT_ICON),
-                CreateTestIngredient("TEST_LONG_INGREDIENT", TEST_REAGENT_ICON),
-                CreateTestIngredient("TEST_LONG_INGREDIENT", TEST_REAGENT_ICON),
-            },
-        },
-    }
-end
-
---- Se llama al hacer clic en una fila de favorita.
--- PASO 2: solo confirma el clic en la versión Dev. Más adelante coloca los ingredientes.
-function AFP.OnFavoriteSelected(favoriteData)
-    if AFP.isDev then
-        AFP.Print(string.format(AFP.L("ROW_CLICKED_DEV"), favoriteData.name))
+--- Busca en el inventario el primer objeto con ese itemId.
+-- Devuelve bagId y slotIndex, o nil si no se tiene.
+local function FindItemInBags(itemId)
+    for _, inventoryType in ipairs(INVENTORY_TYPES) do
+        for _, bagId in ipairs(PLAYER_INVENTORY.inventories[inventoryType].backingBags) do
+            for slotIndex in ZO_IterateBagSlots(bagId) do
+                if GetItemId(bagId, slotIndex) == itemId then
+                    return bagId, slotIndex
+                end
+            end
+        end
     end
+end
+
+local function ShowAlert(text)
+    ZO_Alert(UI_ALERT_CATEGORY_ALERT, SOUNDS.NEGATIVE_CLICK, text)
+end
+
+--- Coloca en las ranuras los ingredientes de una favorita.
+-- Si falta algo no toca las ranuras y avisa de qué falta.
+function AFP.ApplyFavorite(favorite)
+    if #favorite.reagents > 2 and not ZO_Alchemy_IsThirdAlchemySlotUnlocked() then
+        ShowAlert(AFP.L("THIRD_SLOT_LOCKED"))
+        return
+    end
+
+    local solventBag, solventSlot = FindItemInBags(GetItemLinkItemId(favorite.solvent))
+    local reagentSlots = {}
+    local missingNames = {}
+
+    if not solventBag then
+        missingNames[#missingNames + 1] = zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))
+    end
+
+    for _, reagentLink in ipairs(favorite.reagents) do
+        local bagId, slotIndex = FindItemInBags(GetItemLinkItemId(reagentLink))
+        if bagId then
+            reagentSlots[#reagentSlots + 1] = { bagId = bagId, slotIndex = slotIndex }
+        else
+            missingNames[#missingNames + 1] = zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(reagentLink))
+        end
+    end
+
+    if #missingNames > 0 then
+        ShowAlert(string.format(AFP.L("MISSING_INGREDIENTS"), table.concat(missingNames, ", ")))
+        return
+    end
+
+    -- Un disolvente de rango alto no se puede usar con poco nivel de alquimia
+    local _, _, rankRequirement = GetItemCraftingInfo(solventBag, solventSlot)
+    if rankRequirement > GetNonCombatBonus(NON_COMBAT_BONUS_ALCHEMY_LEVEL) then
+        ShowAlert(string.format(AFP.L("SOLVENT_RANK_TOO_LOW"), zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))))
+        return
+    end
+
+    local SUPPRESS_SOUND = true
+    ALCHEMY:ClearSelections(SUPPRESS_SOUND)
+    ALCHEMY:SetSolventItem(solventBag, solventSlot)
+    for reagentIndex, reagentSlot in ipairs(reagentSlots) do
+        ALCHEMY:SetReagentItem(reagentIndex, reagentSlot.bagId, reagentSlot.slotIndex)
+    end
+end
+
+--- Se llama al hacer clic en una fila de favorita
+function AFP.OnFavoriteSelected(rowData)
+    AFP.ApplyFavorite(rowData.favorite)
 end
 
 --- Muestra los mensajes de la versión Dev cuando el chat ya está listo.

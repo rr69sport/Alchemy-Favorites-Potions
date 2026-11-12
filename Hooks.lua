@@ -10,13 +10,6 @@ local FAVORITE_ROW_TEMPLATE = "AlchemyFavoritePotions_Row"
 local FAVORITE_ROW_HEIGHT = 108
 local DEFAULT_NAME_QUALITY = ITEM_DISPLAY_QUALITY_MAGIC or 2
 
---- Ruta de una textura del addon.
--- La carpeta cambia según la versión cargada (AlchemyFavoritePotions o AlchemyFavoritePotionsDev).
-local function GetTexturePath(fileName)
-    local folderName = AFP.isDev and AFP.devName or AFP.name
-    return string.format("%s/textures/%s.dds", folderName, fileName)
-end
-
 --- Reconstruye las pestañas del juego añadiendo la de favoritas.
 -- Es una réplica de ZO_AlchemyInventory:Initialize (alchemy_keyboard.lua). La de favoritas va
 -- la primera porque el juego selecciona por defecto la última pestaña, que debe seguir siendo "Todo".
@@ -24,10 +17,10 @@ local function SetupTabs(inventory)
     local favoritesTab = inventory:CreateNewTabFilterData(
         FAVORITES_FILTER,
         AFP.L("TAB_FAVORITES"),
-        GetTexturePath("heart_up"),
-        GetTexturePath("heart_down"),
-        GetTexturePath("heart_over"),
-        GetTexturePath("heart_disabled")
+        AFP.GetTexturePath("heart_up"),
+        AFP.GetTexturePath("heart_down"),
+        AFP.GetTexturePath("heart_over"),
+        AFP.GetTexturePath("heart_disabled")
     )
     local reagentsTab = inventory:CreateNewTabFilterData(
         ITEMTYPE_REAGENT,
@@ -114,6 +107,14 @@ local function InstallListOverrides(inventory)
     end
 end
 
+--- Vuelve a dibujar la lista si está abierta la pestaña de favoritas (tras añadir o quitar una)
+function AFP.RefreshFavoritesList()
+    local inventory = ALCHEMY and ALCHEMY.inventory
+    if inventory and inventory.filterType == FAVORITES_FILTER then
+        inventory:HandleDirtyEvent()
+    end
+end
+
 function AFP.OnFavoriteRowMouseEnter(rowControl)
     rowControl.highlight:SetHidden(false)
 end
@@ -143,6 +144,7 @@ function AFP.InstallHooks()
     ZO_ScrollList_AddDataType(inventory.list, FAVORITE_DATA_TYPE, FAVORITE_ROW_TEMPLATE, FAVORITE_ROW_HEIGHT,
         SetupFavoriteRow, nil, nil, ResetFavoriteRow)
     InstallListOverrides(inventory)
+    AFP.CreateSlotButton()
 
     AFP.hooksInstalled = true
 end

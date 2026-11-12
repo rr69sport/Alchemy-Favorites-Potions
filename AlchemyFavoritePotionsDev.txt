@@ -9,6 +9,9 @@ Localization.lua
 lang/$(language).lua
 Settings.lua
 Utils.lua
+Favorites.lua
 Core.lua
 AlchemyFavoritePotions.xml
 Hooks.lua
+SlotButton.lua
+Bindings.xml
