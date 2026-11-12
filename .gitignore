@@ -1,0 +1,7 @@
+.vscode/
+.DS_Store
+Thumbs.db
+*.zip
+/esoapi
+.luarc.json
+Debug.lua

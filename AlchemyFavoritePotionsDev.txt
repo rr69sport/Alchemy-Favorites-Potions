@@ -1,0 +1,14 @@
+## Title: Alchemy Favorite Potions (Dev)
+## Author: Teniente.R
+## Version: 0.1.0
+## AddOnVersion: 1
+## APIVersion: 101051
+## SavedVariables: AlchemyFavoritePotionsDev_SV
+
+Localization.lua
+lang/$(language).lua
+Settings.lua
+Utils.lua
+Core.lua
+AlchemyFavoritePotions.xml
+Hooks.lua
