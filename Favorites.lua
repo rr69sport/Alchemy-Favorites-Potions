@@ -97,12 +97,27 @@ function AFP.AddFavorite(combination)
         return
     end
 
+    -- El número solo sirve para ordenar; no se reutiliza al borrar otras favoritas
+    AFP.sv.lastFavoriteId = AFP.sv.lastFavoriteId + 1
+
     AFP.sv.favorites[#AFP.sv.favorites + 1] = {
+        id = AFP.sv.lastFavoriteId,
         solvent = combination.solvent,
         reagents = combination.reagents,
         potion = combination.potion,
         quality = combination.quality,
     }
+end
+
+--- Indica si las favoritas nuevas se muestran al principio de la lista
+function AFP.IsNewestFirst()
+    return AFP.sv.newestFirst
+end
+
+--- Elige si las favoritas nuevas van al principio o al final.
+-- No cambia lo guardado: solo el orden en que se muestran.
+function AFP.SetNewestFirst(newestFirst)
+    AFP.sv.newestFirst = newestFirst
 end
 
 function AFP.RemoveFavorite(combination)
@@ -124,23 +139,58 @@ local function CreateIngredientRow(itemLink)
     }
 end
 
---- Devuelve las filas que muestra la pestaña de favoritas, en el orden en que se guardaron
+--- Favoritas de la más antigua a la más reciente.
+-- Las que no tienen número (guardadas antes de que existiera) cuentan como las más antiguas
+-- y conservan entre sí el orden en que están guardadas.
+local function GetFavoritesOldestFirst()
+    local entries = {}
+    for index, favorite in ipairs(AFP.sv.favorites) do
+        entries[#entries + 1] = { favorite = favorite, id = favorite.id or 0, index = index }
+    end
+
+    table.sort(entries, function(a, b)
+        if a.id ~= b.id then
+            return a.id < b.id
+        end
+        return a.index < b.index
+    end)
+
+    local favorites = {}
+    for _, entry in ipairs(entries) do
+        favorites[#favorites + 1] = entry.favorite
+    end
+    return favorites
+end
+
+local function CreateFavoriteRow(favorite)
+    local ingredients = { CreateIngredientRow(favorite.solvent) }
+    for _, reagentLink in ipairs(favorite.reagents) do
+        ingredients[#ingredients + 1] = CreateIngredientRow(reagentLink)
+    end
+
+    return {
+        name = GetItemLinkDisplayName(favorite.potion),
+        icon = GetItemLinkIcon(favorite.potion),
+        displayQuality = favorite.quality or GetItemLinkDisplayQuality(favorite.potion),
+        ingredients = ingredients,
+        favorite = favorite,
+    }
+end
+
+--- Devuelve las filas que muestra la pestaña de favoritas.
+-- Van de la más reciente a la más antigua, o al revés, según AFP.IsNewestFirst().
 function AFP.GetFavoriteRows()
+    local favorites = GetFavoritesOldestFirst()
     local rows = {}
 
-    for _, favorite in ipairs(AFP.sv.favorites) do
-        local ingredients = { CreateIngredientRow(favorite.solvent) }
-        for _, reagentLink in ipairs(favorite.reagents) do
-            ingredients[#ingredients + 1] = CreateIngredientRow(reagentLink)
+    if AFP.IsNewestFirst() then
+        for index = #favorites, 1, -1 do
+            rows[#rows + 1] = CreateFavoriteRow(favorites[index])
         end
-
-        rows[#rows + 1] = {
-            name = GetItemLinkDisplayName(favorite.potion),
-            icon = GetItemLinkIcon(favorite.potion),
-            displayQuality = favorite.quality or GetItemLinkDisplayQuality(favorite.potion),
-            ingredients = ingredients,
-            favorite = favorite,
-        }
+    else
+        for _, favorite in ipairs(favorites) do
+            rows[#rows + 1] = CreateFavoriteRow(favorite)
+        end
     end
 
     return rows

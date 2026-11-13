@@ -4,6 +4,7 @@ local AFP = AlchemyFavoritePotions
 
 -- Descriptor de la pestaña: no coincide con ningún tipo de objeto del juego
 local FAVORITES_FILTER = "AlchemyFavoritePotionsFavorites"
+AFP.FAVORITES_FILTER = FAVORITES_FILTER
 -- Tipo de dato de la lista; el juego usa 1 y 2 para solventes y reactivos
 local FAVORITE_DATA_TYPE = 100
 local FAVORITE_ROW_TEMPLATE = "AlchemyFavoritePotions_Row"
@@ -98,7 +99,7 @@ local function InstallListOverrides(inventory)
         self:SetNoItemLabelHidden(#data > 0)
     end
 
-    -- Las favoritas mantienen el orden en que se guardaron
+    -- El orden de las favoritas lo decide AFP.GetFavoriteRows, no el criterio de orden del juego
     local baseSortData = inventory.SortData
     inventory.SortData = function(self)
         if self.filterType ~= FAVORITES_FILTER then
@@ -123,9 +124,33 @@ function AFP.OnFavoriteRowMouseExit(rowControl)
     rowControl.highlight:SetHidden(true)
 end
 
+--- Quita una favorita de la lista y refresca la pantalla
+local function RemoveFavoriteFromList(favorite)
+    AFP.RemoveFavorite(favorite)
+    AFP.RefreshFavoritesList()
+    AFP.UpdateSlotButton()
+end
+
+--- Menú del clic derecho sobre una fila: permite quitarla de favoritos
+local function ShowFavoriteRowMenu(rowControl)
+    local favorite = rowControl.favoriteData.favorite
+
+    ClearMenu()
+    AddMenuItem(AFP.L("SLOT_BUTTON_REMOVE"), function()
+        RemoveFavoriteFromList(favorite)
+    end)
+    ShowMenu(rowControl)
+end
+
 function AFP.OnFavoriteRowMouseUp(rowControl, button, upInside)
-    if upInside and button == MOUSE_BUTTON_INDEX_LEFT and rowControl.favoriteData then
+    if not upInside or not rowControl.favoriteData then
+        return
+    end
+
+    if button == MOUSE_BUTTON_INDEX_LEFT then
         AFP.OnFavoriteSelected(rowControl.favoriteData)
+    elseif button == MOUSE_BUTTON_INDEX_RIGHT then
+        ShowFavoriteRowMenu(rowControl)
     end
 end
 
@@ -144,6 +169,7 @@ function AFP.InstallHooks()
     ZO_ScrollList_AddDataType(inventory.list, FAVORITE_DATA_TYPE, FAVORITE_ROW_TEMPLATE, FAVORITE_ROW_HEIGHT,
         SetupFavoriteRow, nil, nil, ResetFavoriteRow)
     InstallListOverrides(inventory)
+    AFP.CreateOrderToggle(inventory)
     AFP.CreateSlotButton()
 
     AFP.hooksInstalled = true

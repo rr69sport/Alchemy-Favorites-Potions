@@ -12,4 +12,8 @@ AFP.svVersion = 1
 
 AFP.defaults = {
     favorites = {},
+    -- Contador que solo sube: da a cada favorita un número para ordenarlas, aunque se borren otras
+    lastFavoriteId = 0,
+    -- true: las nuevas van al principio de la lista; false: al final
+    newestFirst = true,
 }

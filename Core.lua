@@ -55,7 +55,8 @@ function AFP.ApplyFavorite(favorite)
     -- Un disolvente de rango alto no se puede usar con poco nivel de alquimia
     local _, _, rankRequirement = GetItemCraftingInfo(solventBag, solventSlot)
     if rankRequirement > GetNonCombatBonus(NON_COMBAT_BONUS_ALCHEMY_LEVEL) then
-        ShowAlert(string.format(AFP.L("SOLVENT_RANK_TOO_LOW"), zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))))
+        ShowAlert(string.format(AFP.L("SOLVENT_RANK_TOO_LOW"),
+            zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))))
         return
     end
 
