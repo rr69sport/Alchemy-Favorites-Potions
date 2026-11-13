@@ -130,16 +130,34 @@ function AFP.RefreshFavoritesList()
     end
 end
 
-function AFP.OnFavoriteRowMouseEnter(rowControl)
-    rowControl.highlight:SetHidden(false)
+--- Muestra el tooltip de la fila: el texto completo de la etiqueta si está cortado
+-- y los motivos por los que no se puede preparar. Si no hay nada que decir, no muestra nada.
+local function ShowRowTooltip(rowControl, label)
+    local lines = {}
 
-    -- Si no se puede preparar, el tooltip explica por qué (a la izquierda: la lista está a la derecha)
+    if label and label:WasTruncated() then
+        lines[#lines + 1] = label:GetText()
+    end
+
     local problems = rowControl.favoriteData and rowControl.favoriteData.problems
     if problems then
-        rowControl.isShowingTooltip = true
-        InitializeTooltip(InformationTooltip, rowControl, RIGHT, -10, 0)
-        SetTooltipText(InformationTooltip, AFP.GetProblemsText(problems))
+        lines[#lines + 1] = AFP.GetProblemsText(problems)
     end
+
+    if #lines == 0 then
+        return
+    end
+
+    -- A la izquierda de la fila: la lista está a la derecha de la pantalla
+    rowControl.isShowingTooltip = true
+    InitializeTooltip(InformationTooltip, rowControl, RIGHT, -10, 0)
+    SetTooltipText(InformationTooltip, table.concat(lines, "\n\n"))
+end
+
+--- label es la etiqueta bajo el ratón, o nil si el ratón está sobre la fila
+function AFP.OnFavoriteRowMouseEnter(rowControl, label)
+    rowControl.highlight:SetHidden(false)
+    ShowRowTooltip(rowControl, label)
 end
 
 function AFP.OnFavoriteRowMouseExit(rowControl)

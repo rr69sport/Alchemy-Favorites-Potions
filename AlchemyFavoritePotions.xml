@@ -1,7 +1,23 @@
 <GuiXml>
     <Controls>
+        <!-- Etiqueta de una fila: recibe el ratón para poder mostrar el texto completo si está cortado,
+             y reenvía los eventos a la fila para que el resaltado y el clic sigan funcionando -->
+        <Label name="AlchemyFavoritePotions_RowLabel" mouseEnabled="true" wrapMode="ELLIPSIS" maxLineCount="1" virtual="true">
+            <OnMouseEnter>
+                AlchemyFavoritePotions.OnFavoriteRowMouseEnter(self:GetParent(), self)
+            </OnMouseEnter>
+
+            <OnMouseExit>
+                AlchemyFavoritePotions.OnFavoriteRowMouseExit(self:GetParent())
+            </OnMouseExit>
+
+            <OnMouseUp>
+                AlchemyFavoritePotions.OnFavoriteRowMouseUp(self:GetParent(), button, upInside)
+            </OnMouseUp>
+        </Label>
+
         <!-- Etiqueta de ingrediente con icono a la izquierda (mismo aspecto que los rasgos de la fila de reactivo) -->
-        <Label name="AlchemyFavoritePotions_IngredientLabel" font="ZoFontWinH4" wrapMode="ELLIPSIS" maxLineCount="1" virtual="true">
+        <Label name="AlchemyFavoritePotions_IngredientLabel" inherits="AlchemyFavoritePotions_RowLabel" font="ZoFontWinH4" virtual="true">
             <Dimensions x="170" y="20" />
 
             <OnInitialized>
@@ -54,7 +70,7 @@
                     <Anchor point="CENTER" relativePoint="TOPLEFT" offsetX="70" offsetY="46" />
                 </Texture>
 
-                <Label name="$(parent)Name" font="ZoFontGameShadow" maxLineCount="1" wrapMode="ELLIPSIS">
+                <Label name="$(parent)Name" inherits="AlchemyFavoritePotions_RowLabel" font="ZoFontGameShadow">
                     <Dimensions x="270" />
                     <Anchor point="TOPLEFT" offsetX="110" offsetY="15" />
                 </Label>
