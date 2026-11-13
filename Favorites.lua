@@ -162,10 +162,15 @@ local function GetFavoritesOldestFirst()
     return favorites
 end
 
-local function CreateFavoriteRow(favorite)
+local function CreateFavoriteRow(favorite, availableItems)
+    local problems = AFP.GetFavoriteProblems(favorite, availableItems)
+
     local ingredients = { CreateIngredientRow(favorite.solvent) }
     for _, reagentLink in ipairs(favorite.reagents) do
         ingredients[#ingredients + 1] = CreateIngredientRow(reagentLink)
+    end
+    for index, ingredient in ipairs(ingredients) do
+        ingredient.isMissing = problems.missingIngredients[index] == true
     end
 
     return {
@@ -174,6 +179,8 @@ local function CreateFavoriteRow(favorite)
         displayQuality = favorite.quality or GetItemLinkDisplayQuality(favorite.potion),
         ingredients = ingredients,
         favorite = favorite,
+        -- nil si se puede preparar; si no, el motivo para atenuar la fila y mostrar el tooltip
+        problems = problems.hasAny and problems or nil,
     }
 end
 
@@ -181,15 +188,17 @@ end
 -- Van de la más reciente a la más antigua, o al revés, según AFP.IsNewestFirst().
 function AFP.GetFavoriteRows()
     local favorites = GetFavoritesOldestFirst()
+    -- Se recorren las bolsas una vez por refresco, no una por fila
+    local availableItems = AFP.BuildAvailableItems()
     local rows = {}
 
     if AFP.IsNewestFirst() then
         for index = #favorites, 1, -1 do
-            rows[#rows + 1] = CreateFavoriteRow(favorites[index])
+            rows[#rows + 1] = CreateFavoriteRow(favorites[index], availableItems)
         end
     else
         for _, favorite in ipairs(favorites) do
-            rows[#rows + 1] = CreateFavoriteRow(favorite)
+            rows[#rows + 1] = CreateFavoriteRow(favorite, availableItems)
         end
     end
 

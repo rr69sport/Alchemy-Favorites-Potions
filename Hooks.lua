@@ -10,6 +10,9 @@ local FAVORITE_DATA_TYPE = 100
 local FAVORITE_ROW_TEMPLATE = "AlchemyFavoritePotions_Row"
 local FAVORITE_ROW_HEIGHT = 108
 local DEFAULT_NAME_QUALITY = ITEM_DISPLAY_QUALITY_MAGIC or 2
+-- Fila de una favorita que no se puede preparar, y color del ingrediente que falta
+local UNAVAILABLE_ROW_ALPHA = 0.5
+local MISSING_INGREDIENT_COLOR = { 0.85, 0.3, 0.3 }
 
 --- Reconstruye las pestañas del juego añadiendo la de favoritas.
 -- Es una réplica de ZO_AlchemyInventory:Initialize (alchemy_keyboard.lua). La de favoritas va
@@ -61,13 +64,19 @@ local function SetupFavoriteRow(rowControl, data)
         data.displayQuality or DEFAULT_NAME_QUALITY)
     rowControl.name:SetColor(nameRed, nameGreen, nameBlue, 1)
 
+    rowControl:SetAlpha(data.problems and UNAVAILABLE_ROW_ALPHA or 1)
+
     local textRed, textGreen, textBlue = GetInterfaceColor(INTERFACE_COLOR_TYPE_ITEM_TOOLTIP, ITEM_TOOLTIP_COLOR_ACCENT)
     for index, label in ipairs(rowControl.ingredientLabels) do
         local ingredient = data.ingredients[index]
         if ingredient then
             label:SetHidden(false)
             label:SetText(ingredient.name)
-            label:SetColor(textRed, textGreen, textBlue, 1)
+            if ingredient.isMissing then
+                label:SetColor(MISSING_INGREDIENT_COLOR[1], MISSING_INGREDIENT_COLOR[2], MISSING_INGREDIENT_COLOR[3], 1)
+            else
+                label:SetColor(textRed, textGreen, textBlue, 1)
+            end
             label.icon:SetTexture(ingredient.icon)
         else
             label:SetHidden(true)
@@ -78,6 +87,11 @@ end
 --- Limpia la fila cuando el juego la devuelve al pool.
 --- Al pasar un reset propio, el juego ya no aplica el suyo, así que hay que ocultar la fila aquí
 local function ResetFavoriteRow(rowControl)
+    if rowControl.isShowingTooltip then
+        rowControl.isShowingTooltip = false
+        ClearTooltip(InformationTooltip)
+    end
+
     rowControl:SetHidden(true)
     rowControl.favoriteData = nil
     rowControl.highlight:SetHidden(true)
@@ -118,10 +132,23 @@ end
 
 function AFP.OnFavoriteRowMouseEnter(rowControl)
     rowControl.highlight:SetHidden(false)
+
+    -- Si no se puede preparar, el tooltip explica por qué (a la izquierda: la lista está a la derecha)
+    local problems = rowControl.favoriteData and rowControl.favoriteData.problems
+    if problems then
+        rowControl.isShowingTooltip = true
+        InitializeTooltip(InformationTooltip, rowControl, RIGHT, -10, 0)
+        SetTooltipText(InformationTooltip, AFP.GetProblemsText(problems))
+    end
 end
 
 function AFP.OnFavoriteRowMouseExit(rowControl)
     rowControl.highlight:SetHidden(true)
+
+    if rowControl.isShowingTooltip then
+        rowControl.isShowingTooltip = false
+        ClearTooltip(InformationTooltip)
+    end
 end
 
 --- Quita una favorita de la lista y refresca la pantalla
@@ -170,6 +197,8 @@ function AFP.InstallHooks()
         SetupFavoriteRow, nil, nil, ResetFavoriteRow)
     InstallListOverrides(inventory)
     AFP.CreateOrderToggle(inventory)
+    -- Al desbloquear la tercera ranura cambia qué favoritas se pueden preparar
+    ZO_PostHook(ALCHEMY, "UpdateThirdAlchemySlot", AFP.RefreshFavoritesList)
     AFP.CreateSlotButton()
 
     AFP.hooksInstalled = true

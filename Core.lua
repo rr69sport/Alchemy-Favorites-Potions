@@ -4,18 +4,83 @@ local AFP = AlchemyFavoritePotions
 -- Inventarios donde el juego busca ingredientes para la mesa de alquimia
 local INVENTORY_TYPES = { INVENTORY_BACKPACK, INVENTORY_CRAFT_BAG, INVENTORY_BANK }
 
---- Busca en el inventario el primer objeto con ese itemId.
--- Devuelve bagId y slotIndex, o nil si no se tiene.
-local function FindItemInBags(itemId)
+--- Recorre las bolsas una sola vez y devuelve un mapa itemId -> { bagId, slotIndex }.
+-- Si hay varias pilas del mismo objeto se queda con la primera que encuentra.
+function AFP.BuildAvailableItems()
+    local availableItems = {}
+
     for _, inventoryType in ipairs(INVENTORY_TYPES) do
         for _, bagId in ipairs(PLAYER_INVENTORY.inventories[inventoryType].backingBags) do
             for slotIndex in ZO_IterateBagSlots(bagId) do
-                if GetItemId(bagId, slotIndex) == itemId then
-                    return bagId, slotIndex
+                local itemId = GetItemId(bagId, slotIndex)
+                if itemId ~= 0 and not availableItems[itemId] then
+                    availableItems[itemId] = { bagId = bagId, slotIndex = slotIndex }
                 end
             end
         end
     end
+
+    return availableItems
+end
+
+local function GetItemDisplayName(itemLink)
+    return zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(itemLink))
+end
+
+--- Qué impide al personaje preparar una favorita ahora mismo.
+-- Devuelve siempre una tabla; hasAny es false si se puede preparar.
+-- missingIngredients[n] es true si falta el ingrediente n (1 = disolvente, 2... = reactivos).
+function AFP.GetFavoriteProblems(favorite, availableItems)
+    local problems = {
+        missingNames = {},
+        missingIngredients = {},
+        thirdSlotLocked = false,
+        solventRankTooLow = false,
+    }
+
+    local ingredientLinks = { favorite.solvent }
+    for _, reagentLink in ipairs(favorite.reagents) do
+        ingredientLinks[#ingredientLinks + 1] = reagentLink
+    end
+
+    for index, itemLink in ipairs(ingredientLinks) do
+        if not availableItems[GetItemLinkItemId(itemLink)] then
+            problems.missingIngredients[index] = true
+            problems.missingNames[#problems.missingNames + 1] = GetItemDisplayName(itemLink)
+        end
+    end
+
+    problems.thirdSlotLocked = #favorite.reagents > 2 and not ZO_Alchemy_IsThirdAlchemySlotUnlocked()
+
+    -- Un disolvente de rango alto no se puede usar con poco nivel de alquimia
+    local solventItem = availableItems[GetItemLinkItemId(favorite.solvent)]
+    if solventItem then
+        local _, _, rankRequirement = GetItemCraftingInfo(solventItem.bagId, solventItem.slotIndex)
+        if rankRequirement > GetNonCombatBonus(NON_COMBAT_BONUS_ALCHEMY_LEVEL) then
+            problems.solventRankTooLow = true
+            problems.solventName = GetItemDisplayName(favorite.solvent)
+        end
+    end
+
+    problems.hasAny = #problems.missingNames > 0 or problems.thirdSlotLocked or problems.solventRankTooLow
+    return problems
+end
+
+--- Textos de los problemas, uno por línea. Sirve para el tooltip de la fila.
+function AFP.GetProblemsText(problems)
+    local lines = {}
+
+    if #problems.missingNames > 0 then
+        lines[#lines + 1] = string.format(AFP.L("MISSING_INGREDIENTS"), table.concat(problems.missingNames, ", "))
+    end
+    if problems.thirdSlotLocked then
+        lines[#lines + 1] = AFP.L("THIRD_SLOT_LOCKED")
+    end
+    if problems.solventRankTooLow then
+        lines[#lines + 1] = string.format(AFP.L("SOLVENT_RANK_TOO_LOW"), problems.solventName)
+    end
+
+    return table.concat(lines, "\n")
 end
 
 local function ShowAlert(text)
@@ -23,48 +88,34 @@ local function ShowAlert(text)
 end
 
 --- Coloca en las ranuras los ingredientes de una favorita.
--- Si falta algo no toca las ranuras y avisa de qué falta.
+-- Si algo lo impide no toca las ranuras y avisa del motivo.
 function AFP.ApplyFavorite(favorite)
-    if #favorite.reagents > 2 and not ZO_Alchemy_IsThirdAlchemySlotUnlocked() then
+    local availableItems = AFP.BuildAvailableItems()
+    local problems = AFP.GetFavoriteProblems(favorite, availableItems)
+
+    if problems.thirdSlotLocked then
         ShowAlert(AFP.L("THIRD_SLOT_LOCKED"))
         return
     end
 
-    local solventBag, solventSlot = FindItemInBags(GetItemLinkItemId(favorite.solvent))
-    local reagentSlots = {}
-    local missingNames = {}
-
-    if not solventBag then
-        missingNames[#missingNames + 1] = zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))
-    end
-
-    for _, reagentLink in ipairs(favorite.reagents) do
-        local bagId, slotIndex = FindItemInBags(GetItemLinkItemId(reagentLink))
-        if bagId then
-            reagentSlots[#reagentSlots + 1] = { bagId = bagId, slotIndex = slotIndex }
-        else
-            missingNames[#missingNames + 1] = zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(reagentLink))
-        end
-    end
-
-    if #missingNames > 0 then
-        ShowAlert(string.format(AFP.L("MISSING_INGREDIENTS"), table.concat(missingNames, ", ")))
+    if #problems.missingNames > 0 then
+        ShowAlert(string.format(AFP.L("MISSING_INGREDIENTS"), table.concat(problems.missingNames, ", ")))
         return
     end
 
-    -- Un disolvente de rango alto no se puede usar con poco nivel de alquimia
-    local _, _, rankRequirement = GetItemCraftingInfo(solventBag, solventSlot)
-    if rankRequirement > GetNonCombatBonus(NON_COMBAT_BONUS_ALCHEMY_LEVEL) then
-        ShowAlert(string.format(AFP.L("SOLVENT_RANK_TOO_LOW"),
-            zo_strformat(SI_TOOLTIP_ITEM_NAME, GetItemLinkName(favorite.solvent))))
+    if problems.solventRankTooLow then
+        ShowAlert(string.format(AFP.L("SOLVENT_RANK_TOO_LOW"), problems.solventName))
         return
     end
+
+    local solventItem = availableItems[GetItemLinkItemId(favorite.solvent)]
 
     local SUPPRESS_SOUND = true
     ALCHEMY:ClearSelections(SUPPRESS_SOUND)
-    ALCHEMY:SetSolventItem(solventBag, solventSlot)
-    for reagentIndex, reagentSlot in ipairs(reagentSlots) do
-        ALCHEMY:SetReagentItem(reagentIndex, reagentSlot.bagId, reagentSlot.slotIndex)
+    ALCHEMY:SetSolventItem(solventItem.bagId, solventItem.slotIndex)
+    for reagentIndex, reagentLink in ipairs(favorite.reagents) do
+        local reagentItem = availableItems[GetItemLinkItemId(reagentLink)]
+        ALCHEMY:SetReagentItem(reagentIndex, reagentItem.bagId, reagentItem.slotIndex)
     end
 end
 
