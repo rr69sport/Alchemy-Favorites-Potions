@@ -16,3 +16,5 @@ AFP.strings.SOLVENT_RANK_TOO_LOW = "Tu nivel de alquimia no permite usar este di
 AFP.strings.THIRD_SLOT_LOCKED = "Esta combinación usa tres reactivos y aún no tienes la tercera ranura de alquimia"
 AFP.strings.ORDER_NEWEST_FIRST = "Añadir al principio"
 AFP.strings.ORDER_NEWEST_LAST = "Añadir al final"
+AFP.strings.WINDOW_TITLE = "Haz clic en una poción > Enlazar en el chat"
+AFP.strings.LINK_IN_CHAT = "Enlazar en el chat"

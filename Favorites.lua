@@ -162,15 +162,17 @@ local function GetFavoritesOldestFirst()
     return favorites
 end
 
+--- Fila de una favorita. Si availableItems es nil no se calculan los problemas
+-- (la ventana de consulta no atenúa ni marca nada).
 local function CreateFavoriteRow(favorite, availableItems)
-    local problems = AFP.GetFavoriteProblems(favorite, availableItems)
+    local problems = availableItems and AFP.GetFavoriteProblems(favorite, availableItems) or nil
 
     local ingredients = { CreateIngredientRow(favorite.solvent) }
     for _, reagentLink in ipairs(favorite.reagents) do
         ingredients[#ingredients + 1] = CreateIngredientRow(reagentLink)
     end
     for index, ingredient in ipairs(ingredients) do
-        ingredient.isMissing = problems.missingIngredients[index] == true
+        ingredient.isMissing = problems ~= nil and problems.missingIngredients[index] == true
     end
 
     return {
@@ -180,16 +182,20 @@ local function CreateFavoriteRow(favorite, availableItems)
         ingredients = ingredients,
         favorite = favorite,
         -- nil si se puede preparar; si no, el motivo para atenuar la fila y mostrar el tooltip
-        problems = problems.hasAny and problems or nil,
+        problems = (problems and problems.hasAny) and problems or nil,
     }
 end
 
---- Devuelve las filas que muestra la pestaña de favoritas.
+--- Devuelve las filas que muestran la pestaña de favoritas y la ventana de consulta.
 -- Van de la más reciente a la más antigua, o al revés, según AFP.IsNewestFirst().
-function AFP.GetFavoriteRows()
+-- Con skipProblems no se miran las bolsas ni se calcula si se pueden preparar.
+function AFP.GetFavoriteRows(skipProblems)
     local favorites = GetFavoritesOldestFirst()
     -- Se recorren las bolsas una vez por refresco, no una por fila
-    local availableItems = AFP.BuildAvailableItems()
+    local availableItems = nil
+    if not skipProblems then
+        availableItems = AFP.BuildAvailableItems()
+    end
     local rows = {}
 
     if AFP.IsNewestFirst() then

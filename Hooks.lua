@@ -9,6 +9,9 @@ AFP.FAVORITES_FILTER = FAVORITES_FILTER
 local FAVORITE_DATA_TYPE = 100
 local FAVORITE_ROW_TEMPLATE = "AlchemyFavoritePotions_Row"
 local FAVORITE_ROW_HEIGHT = 108
+-- La ventana de consulta (Window.lua) usa las mismas filas
+AFP.FAVORITE_ROW_TEMPLATE = FAVORITE_ROW_TEMPLATE
+AFP.FAVORITE_ROW_HEIGHT = FAVORITE_ROW_HEIGHT
 local DEFAULT_NAME_QUALITY = ITEM_DISPLAY_QUALITY_MAGIC or 2
 -- Fila de una favorita que no se puede preparar, y color del ingrediente que falta
 local UNAVAILABLE_ROW_ALPHA = 0.5
@@ -84,6 +87,8 @@ local function SetupFavoriteRow(rowControl, data)
     end
 end
 
+AFP.SetupFavoriteRow = SetupFavoriteRow
+
 --- Limpia la fila cuando el juego la devuelve al pool.
 --- Al pasar un reset propio, el juego ya no aplica el suyo, así que hay que ocultar la fila aquí
 local function ResetFavoriteRow(rowControl)
@@ -96,6 +101,7 @@ local function ResetFavoriteRow(rowControl)
     rowControl.favoriteData = nil
     rowControl.highlight:SetHidden(true)
 end
+AFP.ResetFavoriteRow = ResetFavoriteRow
 
 --- Sustituye Refresh y SortData de la lista solo mientras está activa la pestaña de favoritas
 local function InstallListOverrides(inventory)
@@ -189,6 +195,12 @@ end
 
 function AFP.OnFavoriteRowMouseUp(rowControl, button, upInside)
     if not upInside or not rowControl.favoriteData then
+        return
+    end
+
+    -- Las filas de la ventana de consulta traen su propio manejador
+    if rowControl.mouseUpHandler then
+        rowControl.mouseUpHandler(rowControl, button, upInside)
         return
     end
 

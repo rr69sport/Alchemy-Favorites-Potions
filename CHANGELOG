@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- New `/afp` command: opens a window with your favorite potions, in the same order as the alchemy station tab.
+- Click a potion in the window and choose "Link in Chat" to write its recipe in the chat box.
+
 ## 1.0.0
 
 - Initial release

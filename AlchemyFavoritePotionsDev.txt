@@ -1,7 +1,7 @@
 ## Title: Alchemy Favorite Potions (Dev)
 ## Author: Teniente.R
-## Version: 1.0.0
-## AddOnVersion: 1
+## Version: 1.1.0
+## AddOnVersion: 2
 ## APIVersion: 101051
 ## SavedVariables: AlchemyFavoritePotionsDev_SV
 
@@ -16,4 +16,5 @@ AlchemyFavoritePotions.xml
 Hooks.lua
 SlotButton.lua
 OrderToggle.lua
+Window.lua
 Bindings.xml

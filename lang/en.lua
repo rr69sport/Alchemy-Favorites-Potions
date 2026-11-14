@@ -16,3 +16,5 @@ AFP.strings.SOLVENT_RANK_TOO_LOW = "Your alchemy rank is too low to use this sol
 AFP.strings.THIRD_SLOT_LOCKED = "This combination uses three reagents and you have not unlocked the third alchemy slot yet"
 AFP.strings.ORDER_NEWEST_FIRST = "Add to top"
 AFP.strings.ORDER_NEWEST_LAST = "Add to bottom"
+AFP.strings.WINDOW_TITLE = "Click a potion > Link in Chat"
+AFP.strings.LINK_IN_CHAT = "Link in Chat"

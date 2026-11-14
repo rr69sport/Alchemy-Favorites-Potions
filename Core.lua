@@ -153,6 +153,10 @@ local function Initialize(isDev)
         AFP.hooksError = errorMessage
     end
 
+    -- Ventana de consulta con las favoritas, se abre con /afp
+    AFP.InitWindow()
+    SLASH_COMMANDS["/afp"] = AFP.ToggleWindow
+
     if isDev then
         PrintDevLoadedMessage(svName)
     end
