@@ -3,8 +3,8 @@
 -- con el botón X y sola cuando el personaje se mueve.
 local AFP = AlchemyFavoritePotions
 
-local WINDOW_WIDTH = 640
-local WINDOW_HEIGHT = 420
+local WINDOW_WIDTH = 600
+local WINDOW_HEIGHT = 700
 -- Parte de la pantalla que la ventana puede ocupar como máximo (pantallas pequeñas)
 local MAX_SCREEN_RATIO = 0.9
 local TITLE_TOP_OFFSET = 16
@@ -12,12 +12,24 @@ local TITLE_TOP_OFFSET = 16
 local TITLE_SIDE_MARGIN = 48
 -- Tipo de dato de la lista de la ventana (es una lista propia, no comparte pool con la de la mesa)
 local ROW_DATA_TYPE = 1
-local LIST_TOP_OFFSET = 56
+-- Fila de casillas entre el título y la lista
+local CONTROLS_TOP_OFFSET = 54
+local CONTROLS_SIDE_MARGIN = 24
+local CHECKBOXES_GAP = 20
+local LIST_TOP_OFFSET = 90
 local LIST_SIDE_MARGIN = 20
 local LIST_BOTTOM_MARGIN = 20
 
+-- Nombre del atajo (Controles > Addons) que abre la ventana; la acción está en Bindings.xml
+ZO_CreateStringId("SI_BINDING_NAME_ALCHEMY_FAVORITE_POTIONS_OPEN_WINDOW", AFP.L("KEYBIND_OPEN_WINDOW"))
+
 local list
 local emptyLabel
+local solventCheckBox
+local potionsCheckBox
+local poisonsCheckBox
+-- Filtro de la ventana: nil (todas), AFP.KIND.POTION o AFP.KIND.POISON. No se guarda.
+local windowKind
 
 --- Ajusta tamaño y posición: siempre se abre centrada y cabe en la pantalla
 local function ResetWindowLayout(window)
@@ -38,16 +50,21 @@ local function GetLinkInChatText()
     return AFP.L("LINK_IN_CHAT")
 end
 
---- Mensaje del chat: nombre de la poción y reactivos, sin el disolvente.
+--- Mensaje del chat: nombre de la poción y reactivos; el disolvente solo si la casilla está marcada.
 -- Ejemplo: "Sorbo de aguante: Aguileña, Cardo bendito"
+-- Con disolvente: "Sorbo de aguante: Agua natural + Aguileña, Cardo bendito"
 -- En rowData.ingredients el primero es el disolvente y el resto los reactivos.
 local function BuildShareText(rowData)
     local reagentNames = {}
     for index = 2, #rowData.ingredients do
         reagentNames[#reagentNames + 1] = rowData.ingredients[index].name
     end
+    local reagentsText = table.concat(reagentNames, ", ")
 
-    return string.format("%s: %s", rowData.name, table.concat(reagentNames, ", "))
+    if AFP.sv.includeSolvent then
+        return string.format("%s: %s + %s", rowData.name, rowData.ingredients[1].name, reagentsText)
+    end
+    return string.format("%s: %s", rowData.name, reagentsText)
 end
 
 --- Menú de una fila de la ventana, con una sola opción: dejar la receta escrita en el chat
@@ -79,16 +96,50 @@ end
 --- Rellena la lista con las favoritas, en el orden elegido en la pestaña de la mesa
 local function RefreshList()
     ZO_ScrollList_Clear(list)
+    emptyLabel:SetText(AFP.L(windowKind == AFP.KIND.POISON and "NO_FAVORITE_POISONS" or "NO_FAVORITES"))
 
     local data = ZO_ScrollList_GetDataList(list)
     -- Es una ventana de consulta: no importa si se puede preparar o no
-    local SKIP_PROBLEMS = true
-    for _, favorite in ipairs(AFP.GetFavoriteRows(SKIP_PROBLEMS)) do
+    for _, favorite in ipairs(AFP.GetFavoriteRows({ skipProblems = true, kind = windowKind })) do
         data[#data + 1] = ZO_ScrollList_CreateDataEntry(ROW_DATA_TYPE, favorite)
     end
 
     ZO_ScrollList_Commit(list)
     emptyLabel:SetHidden(#data > 0)
+end
+
+--- Deja las casillas de filtro igual que la variable
+local function SyncKindCheckBoxes()
+    ZO_CheckButton_SetCheckState(potionsCheckBox, windowKind == AFP.KIND.POTION)
+    ZO_CheckButton_SetCheckState(poisonsCheckBox, windowKind == AFP.KIND.POISON)
+end
+
+local function SetWindowKind(kind)
+    windowKind = kind
+    SyncKindCheckBoxes()
+    RefreshList()
+end
+
+--- Crea una casilla de filtro; son excluyentes, como en la mesa
+local function CreateKindCheckBox(name, window, textKey, kind)
+    local checkBox
+    checkBox = AFP.CreateCheckBox(name, window, AFP.L(textKey), false, function()
+        SetWindowKind(ZO_CheckButton_IsChecked(checkBox) and kind or nil)
+    end)
+    return checkBox
+end
+
+--- Coloca la fila de casillas: "Añadir disolvente" a la izquierda y los filtros a la derecha
+local function LayoutControlRow(window)
+    solventCheckBox:ClearAnchors()
+    solventCheckBox:SetAnchor(TOPLEFT, window, TOPLEFT, CONTROLS_SIDE_MARGIN, CONTROLS_TOP_OFFSET)
+
+    local poisonsX = window:GetWidth() - CONTROLS_SIDE_MARGIN - AFP.GetCheckBoxWidth(poisonsCheckBox)
+    local potionsX = poisonsX - CHECKBOXES_GAP - AFP.GetCheckBoxWidth(potionsCheckBox)
+    potionsCheckBox:ClearAnchors()
+    potionsCheckBox:SetAnchor(TOPLEFT, window, TOPLEFT, potionsX, CONTROLS_TOP_OFFSET)
+    poisonsCheckBox:ClearAnchors()
+    poisonsCheckBox:SetAnchor(TOPLEFT, window, TOPLEFT, poisonsX, CONTROLS_TOP_OFFSET)
 end
 
 --- Crea la ventana y la registra como escena
@@ -122,6 +173,14 @@ function AFP.InitWindow()
         SCENE_MANAGER:ShowBaseScene()
     end)
 
+    solventCheckBox = AFP.CreateCheckBox("$(parent)Solvent", window, AFP.L("INCLUDE_SOLVENT"),
+        AFP.sv.includeSolvent, function()
+            AFP.sv.includeSolvent = ZO_CheckButton_IsChecked(solventCheckBox)
+        end)
+    potionsCheckBox = CreateKindCheckBox("$(parent)PotionsOnly", window, "KIND_POTIONS_ONLY", AFP.KIND.POTION)
+    poisonsCheckBox = CreateKindCheckBox("$(parent)PoisonsOnly", window, "KIND_POISONS_ONLY", AFP.KIND.POISON)
+    LayoutControlRow(window)
+
     list = WINDOW_MANAGER:CreateControlFromVirtual("$(parent)List", window, "ZO_ScrollList")
     list:SetAnchor(TOPLEFT, window, TOPLEFT, LIST_SIDE_MARGIN, LIST_TOP_OFFSET)
     list:SetAnchor(BOTTOMRIGHT, window, BOTTOMRIGHT, -LIST_SIDE_MARGIN, -LIST_BOTTOM_MARGIN)
@@ -139,6 +198,11 @@ function AFP.InitWindow()
     fragment:RegisterCallback("StateChange", function(_, newState)
         if newState == SCENE_FRAGMENT_SHOWING then
             ResetWindowLayout(window)
+            LayoutControlRow(window)
+            -- El filtro no se guarda: cada vez que se abre muestra todas
+            windowKind = nil
+            SyncKindCheckBoxes()
+            ZO_CheckButton_SetCheckState(solventCheckBox, AFP.sv.includeSolvent)
             RefreshList()
         end
     end)

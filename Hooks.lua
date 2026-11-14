@@ -29,6 +29,8 @@ local function SetupTabs(inventory)
         AFP.GetTexturePath("heart_over"),
         AFP.GetTexturePath("heart_disabled")
     )
+    -- El título de la pestaña no cambia; solo el tooltip lleva la pista del comando
+    favoritesTab.tooltipText = AFP.L("TAB_FAVORITES_TOOLTIP") .. "\n" .. AFP.L("COMMAND_HINT")
     local reagentsTab = inventory:CreateNewTabFilterData(
         ITEMTYPE_REAGENT,
         GetString(SI_ALCHEMY_REAGENTS_TAB),
@@ -103,6 +105,16 @@ local function ResetFavoriteRow(rowControl)
 end
 AFP.ResetFavoriteRow = ResetFavoriteRow
 
+--- Texto de la lista vacía: depende del filtro de tipo
+local function GetEmptyListText()
+    local text = AFP.GetNoFavoritesText(AFP.stationKind)
+    if AFP.stationKind == nil then
+        -- Sin filtro: de verdad no hay ninguna favorita, se aprovecha para dar la pista del comando
+        return text .. "\n" .. AFP.L("COMMAND_HINT")
+    end
+    return text
+end
+
 --- Sustituye Refresh y SortData de la lista solo mientras está activa la pestaña de favoritas
 local function InstallListOverrides(inventory)
     local baseRefresh = inventory.Refresh
@@ -111,11 +123,11 @@ local function InstallListOverrides(inventory)
             return baseRefresh(self, data)
         end
 
-        for _, favorite in ipairs(AFP.GetFavoriteRows()) do
+        for _, favorite in ipairs(AFP.GetFavoriteRows({ kind = AFP.stationKind })) do
             data[#data + 1] = ZO_ScrollList_CreateDataEntry(FAVORITE_DATA_TYPE, favorite)
         end
 
-        self:SetNoItemLabelText(AFP.L("NO_FAVORITES"))
+        self:SetNoItemLabelText(GetEmptyListText())
         self:SetNoItemLabelHidden(#data > 0)
     end
 
@@ -227,6 +239,7 @@ function AFP.InstallHooks()
         SetupFavoriteRow, nil, nil, ResetFavoriteRow)
     InstallListOverrides(inventory)
     AFP.CreateOrderToggle(inventory)
+    AFP.CreateKindFilters(inventory)
     -- Al desbloquear la tercera ranura cambia qué favoritas se pueden preparar
     ZO_PostHook(ALCHEMY, "UpdateThirdAlchemySlot", AFP.RefreshFavoritesList)
     AFP.CreateSlotButton()
